@@ -13,6 +13,7 @@
             --text: #212121;
             --background: #f5f5f5;
             --card: #ffffff;
+            --border: #e0e0e0;
             --error: #d32f2f;
             --success: #388e3c;
         }
@@ -132,7 +133,7 @@
         }
         
         .btn-secondary:hover {
-            background-color: #e65100;
+            background-color: #000;
         }
         
         .btn-group {
@@ -154,7 +155,7 @@
         }
         
         table th {
-            background-color: var(--primary-light);
+            background-color: var(--primary);
             color: white;
         }
         
@@ -281,7 +282,7 @@
             100% { transform: rotate(360deg); }
         }
         
-        #inventory-preview, #transcript-preview {
+        .inventory-preview, .transcript-preview {
             max-height: 300px;
             overflow-y: auto;
             margin-bottom: 1rem;
@@ -340,6 +341,30 @@
             visibility: visible;
             opacity: 1;
         }
+        
+        .inventory-type-selector {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 1rem;
+            background-color: var(--primary-light);
+            padding: 0.5rem;
+            border-radius: 4px;
+        }
+        
+        .inventory-type-selector label {
+            margin: 0 1rem;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .transcript-help {
+            background-color: #e3f2fd;
+            padding: 0.5rem;
+            border-radius: 4px;
+            border-left: 4px solid var(--primary);
+            margin-bottom: 0.5rem;
+        }
     </style>
 </head>
 <body>
@@ -351,25 +376,28 @@
     </header>
     
     <div class="container">
-        <div class="tabs">
-            <div class="tab active" data-tab="setup">Setup</div>
-            <div class="tab" data-tab="audit">Audit</div>
-            <div class="tab" data-tab="reports">Reports</div>
-        </div>
+        <h1>RNR Tire Inventory Audit</h1>
+        <p>Created by Shane Lockhart</p>
         
         <div class="inventory-type-selector">
             <label><input type="radio" name="inventory-type" value="tires" checked> Tires</label>
             <label><input type="radio" name="inventory-type" value="wheels"> Wheels</label>
         </div>
         
+        <div class="tabs">
+            <div class="tab active" data-tab="setup">Setup</div>
+            <div class="tab" data-tab="audit">Audit</div>
+            <div class="tab" data-tab="reports">Reports</div>
+        </div>
+        
         <!-- Setup Tab -->
         <div class="tab-content active" id="setup-content">
             <div class="card">
                 <h2>Import Inventory Data</h2>
-                <p>Upload your current inventory spreadsheet (CSV format)</p>
-                <input type="file" id="inventory-file" accept=".csv">
+                <p>Upload your inventory PDF report</p>
+                <input type="file" id="inventory-file" accept=".pdf">
                 <div id="inventory-file-info" class="file-info hidden"></div>
-                <div id="inventory-preview"></div>
+                <div id="inventory-preview" class="inventory-preview"></div>
                 <div class="btn-group">
                     <button id="parse-inventory">Parse Inventory</button>
                 </div>
@@ -384,7 +412,7 @@ Example: 'Item 50278, Item 47171, Item 35022'"></textarea>
                 <p>Or upload transcript file:</p>
                 <input type="file" id="transcript-file" accept=".txt">
                 <div id="transcript-file-info" class="file-info hidden"></div>
-                <div id="transcript-preview"></div>
+                <div id="transcript-preview" class="transcript-preview"></div>
                 <div class="btn-group">
                     <button id="parse-transcript">Parse Transcript</button>
                 </div>
@@ -475,8 +503,11 @@ Example: 'Item 50278, Item 47171, Item 35022'"></textarea>
         </div>
     </div>
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script>
+        // Set PDF.js worker path
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+        
         // Add custom CSS for the inventory type selector
         const style = document.createElement('style');
         style.textContent = `
@@ -535,74 +566,152 @@ Example: 'Item 50278, Item 47171, Item 35022'"></textarea>
         let transcriptData = [];
         let auditResults = [];
         
-        // Parse Inventory
-        document.getElementById('parse-inventory').addEventListener('click', () => {
+        // Parse PDF Inventory File
+        document.getElementById('parse-inventory').addEventListener('click', async () => {
             const fileInput = document.getElementById('inventory-file');
             if (fileInput.files.length === 0) {
-                alert('Please select an inventory file first.');
+                alert('Please select an inventory PDF file first.');
                 return;
             }
             
             const file = fileInput.files[0];
             document.getElementById('loading-indicator').style.display = 'block';
             
-            Papa.parse(file, {
-                header: true,
-                complete: function(results) {
-                    inventoryData = results.data.filter(row => Object.values(row).some(val => val !== ""));
-                    document.getElementById('loading-indicator').style.display = 'none';
-                    
-                    // Display file info
-                    const fileInfo = document.getElementById('inventory-file-info');
-                    fileInfo.textContent = `File: ${file.name} (${inventoryData.length} items)`;
-                    fileInfo.classList.remove('hidden');
-                    
-                    // Preview first 5 items
-                    const preview = document.getElementById('inventory-preview');
-                    preview.innerHTML = '';
-                    const table = document.createElement('table');
-                    
-                    // Create header row
-                    const thead = document.createElement('thead');
-                    const headerRow = document.createElement('tr');
-                    Object.keys(inventoryData[0]).forEach(key => {
-                        const th = document.createElement('th');
-                        th.textContent = key;
-                        headerRow.appendChild(th);
-                    });
-                    thead.appendChild(headerRow);
-                    table.appendChild(thead);
-                    
-                    // Create data rows (first 5)
-                    const tbody = document.createElement('tbody');
-                    inventoryData.slice(0, 5).forEach(item => {
-                        const row = document.createElement('tr');
-                        Object.values(item).forEach(value => {
-                            const td = document.createElement('td');
-                            td.textContent = value;
-                            row.appendChild(td);
-                        });
-                        tbody.appendChild(row);
-                    });
-                    table.appendChild(tbody);
-                    preview.appendChild(table);
-                    
-                    // Add ellipsis row if more than 5 items
-                    if (inventoryData.length > 5) {
-                        const ellipsisRow = document.createElement('div');
-                        ellipsisRow.textContent = `... and ${inventoryData.length - 5} more items`;
-                        ellipsisRow.style.textAlign = 'center';
-                        ellipsisRow.style.padding = '0.5rem';
-                        preview.appendChild(ellipsisRow);
-                    }
-                    
-                    alert(`Successfully parsed ${inventoryData.length} inventory items.`);
-                },
-                error: function(error) {
-                    document.getElementById('loading-indicator').style.display = 'none';
-                    alert('Error parsing inventory file: ' + error);
+            try {
+                // Read the PDF file
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                
+                // Extract text from all pages
+                let allText = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+                    const strings = content.items.map(item => item.str);
+                    allText += strings.join(' ') + '\n';
                 }
-            });
+                
+                // Process the text to extract inventory items
+                // This is specifically designed for RNR Tire inventory format
+                const lines = allText.split('\n');
+                const items = [];
+                
+                // Regex to find inventory numbers like "1170335529"
+                const itemNumberRegex = /\b(11703\d{5})\b/g;
+                
+                // Process each line
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    let match;
+                    
+                    // Find all item numbers in this line
+                    while ((match = itemNumberRegex.exec(line)) !== null) {
+                        const itemNumber = match[1];
+                        
+                        // Try to extract other item information from nearby text
+                        let description = '';
+                        let status = 'In Stock';
+                        let quantity = 1;
+                        
+                        // Look for description in the same line or nearby lines
+                        const context = [
+                            lines[Math.max(0, i-1)], 
+                            line, 
+                            lines[Math.min(lines.length-1, i+1)]
+                        ].join(' ');
+                        
+                        // Look for common words that might indicate a product description
+                        const descriptionMatch = /\b(TIRE|WHEEL)\s+([A-Z]+)(\s+[A-Z0-9\/.]+)+/i.exec(context);
+                        if (descriptionMatch) {
+                            description = descriptionMatch[0];
+                        }
+                        
+                        // Create item object
+                        items.push({
+                            Number: itemNumber,
+                            Description: description,
+                            Status: status,
+                            Quantity: quantity
+                        });
+                    }
+                }
+                
+                // Store the extracted data
+                inventoryData = items;
+                
+                // Display file info
+                const fileInfo = document.getElementById('inventory-file-info');
+                fileInfo.textContent = `File: ${file.name} (${inventoryData.length} items extracted)`;
+                fileInfo.classList.remove('hidden');
+                
+                // Preview first 5 items
+                const preview = document.getElementById('inventory-preview');
+                preview.innerHTML = '';
+                
+                if (inventoryData.length === 0) {
+                    preview.innerHTML = '<p class="error-message">No inventory items could be extracted from the PDF. Please check the format.</p>';
+                    document.getElementById('loading-indicator').style.display = 'none';
+                    return;
+                }
+                
+                // Get the most important columns to display
+                const importantColumns = ["Number", "Description", "Status"];
+                
+                // Find the actual column names in the data that match our important fields
+                const columns = Object.keys(inventoryData[0]);
+                const displayColumns = columns.filter(col => 
+                    importantColumns.some(important => 
+                        col.toLowerCase().includes(important.toLowerCase())
+                    ) || 
+                    col === columns[0] // Always include the first column
+                );
+                
+                const table = document.createElement('table');
+                const thead = document.createElement('thead');
+                const headerRow = document.createElement('tr');
+                
+                // Create header row with only important columns
+                displayColumns.forEach(key => {
+                    const th = document.createElement('th');
+                    th.textContent = key;
+                    headerRow.appendChild(th);
+                });
+                
+                thead.appendChild(headerRow);
+                table.appendChild(thead);
+                
+                // Create data rows (first 5)
+                const tbody = document.createElement('tbody');
+                inventoryData.slice(0, 5).forEach(item => {
+                    const row = document.createElement('tr');
+                    // Only display the important columns
+                    displayColumns.forEach(key => {
+                        const td = document.createElement('td');
+                        td.textContent = item[key];
+                        row.appendChild(td);
+                    });
+                    tbody.appendChild(row);
+                });
+                table.appendChild(tbody);
+                preview.appendChild(table);
+                
+                // Add ellipsis row if more than 5 items
+                if (inventoryData.length > 5) {
+                    const ellipsisRow = document.createElement('div');
+                    ellipsisRow.textContent = `... and ${inventoryData.length - 5} more items`;
+                    ellipsisRow.style.textAlign = 'center';
+                    ellipsisRow.style.padding = '0.5rem';
+                    preview.appendChild(ellipsisRow);
+                }
+                
+                document.getElementById('loading-indicator').style.display = 'none';
+                alert(`Successfully extracted ${inventoryData.length} inventory items from PDF.`);
+                
+            } catch (error) {
+                document.getElementById('loading-indicator').style.display = 'none';
+                console.error('Error processing PDF:', error);
+                alert('Error processing PDF. Please check the console for details.');
+            }
         });
         
         // Handle transcript file upload
@@ -705,7 +814,6 @@ Example: 'Item 50278, Item 47171, Item 35022'"></textarea>
                 
                 tbody.appendChild(row);
             });
-            
             table.appendChild(tbody);
             preview.appendChild(table);
             
@@ -787,158 +895,4 @@ Example: 'Item 50278, Item 47171, Item 35022'"></textarea>
             const extraItems = auditResults.filter(item => item.status === 'extra').length;
             
             document.getElementById('total-items').textContent = totalItems;
-            document.getElementById('items-found').textContent = itemsFound;
-            document.getElementById('items-missing').textContent = itemsMissing;
-            document.getElementById('extra-items').textContent = extraItems;
-            
-            // Display results in table
-            displayAuditResults(auditResults);
-            
-            document.getElementById('loading-indicator').style.display = 'none';
-            
-            // Switch to Audit tab
-            document.querySelector('.tab[data-tab="audit"]').click();
-        }
-        
-        // Display Audit Results
-        function displayAuditResults(results) {
-            const tbody = document.getElementById('audit-data');
-            tbody.innerHTML = '';
-            
-            results.forEach(item => {
-                const row = document.createElement('tr');
-                
-                // Status cell with colored indicator
-                const statusCell = document.createElement('td');
-                const statusIndicator = document.createElement('span');
-                statusIndicator.classList.add('status-indicator');
-                
-                if (item.status === 'match') {
-                    statusIndicator.classList.add('status-match');
-                    statusCell.appendChild(statusIndicator);
-                    statusCell.appendChild(document.createTextNode('Match'));
-                } else if (item.status === 'missing') {
-                    statusIndicator.classList.add('status-mismatch');
-                    statusCell.appendChild(statusIndicator);
-                    statusCell.appendChild(document.createTextNode('Missing'));
-                } else if (item.status === 'extra') {
-                    statusIndicator.classList.add('status-not-found');
-                    statusCell.appendChild(statusIndicator);
-                    statusCell.appendChild(document.createTextNode('Extra'));
-                }
-                
-                row.appendChild(statusCell);
-                
-                // Item number
-                const itemNumberCell = document.createElement('td');
-                itemNumberCell.textContent = item.itemNumber;
-                row.appendChild(itemNumberCell);
-                
-                // Description
-                const descriptionCell = document.createElement('td');
-                descriptionCell.textContent = item.description;
-                row.appendChild(descriptionCell);
-                
-                // Expected quantity
-                const expectedQtyCell = document.createElement('td');
-                expectedQtyCell.textContent = item.expectedQty;
-                row.appendChild(expectedQtyCell);
-                
-                // Actual quantity
-                const actualQtyCell = document.createElement('td');
-                actualQtyCell.textContent = item.actualQty;
-                row.appendChild(actualQtyCell);
-                
-                // Difference
-                const differenceCell = document.createElement('td');
-                differenceCell.textContent = item.difference;
-                if (item.difference < 0) {
-                    differenceCell.style.color = 'red';
-                } else if (item.difference > 0) {
-                    differenceCell.style.color = 'orange';
-                }
-                row.appendChild(differenceCell);
-                
-                tbody.appendChild(row);
-            });
-        }
-        
-        // Search functionality
-        document.getElementById('search-button').addEventListener('click', () => {
-            const searchTerm = document.getElementById('search-audit').value.toLowerCase();
-            const filterStatus = document.getElementById('filter-status').value;
-            
-            let filteredResults = auditResults;
-            
-            // Apply search filter
-            if (searchTerm) {
-                filteredResults = filteredResults.filter(item => 
-                    item.itemNumber.toLowerCase().includes(searchTerm) || 
-                    item.description.toLowerCase().includes(searchTerm)
-                );
-            }
-            
-            // Apply status filter
-            if (filterStatus !== 'all') {
-                filteredResults = filteredResults.filter(item => item.status === filterStatus);
-            }
-            
-            // Display filtered results
-            displayAuditResults(filteredResults);
-        });
-        
-        // Filter status change
-        document.getElementById('filter-status').addEventListener('change', () => {
-            document.getElementById('search-button').click();
-        });
-        
-        // Export to CSV
-        document.getElementById('export-csv').addEventListener('click', () => {
-            if (auditResults.length === 0) {
-                alert('No audit results to export.');
-                return;
-            }
-            
-            // Create CSV content
-            let csvContent = 'Status,Item Number,Description,Expected Qty,Actual Qty,Difference\n';
-            
-            auditResults.forEach(item => {
-                csvContent += `${item.status},${item.itemNumber},"${item.description}",${item.expectedQty},${item.actualQty},${item.difference}\n`;
-            });
-            
-            // Create download link
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.setAttribute('href', url);
-            link.setAttribute('download', `rnr-tire-audit-${new Date().toISOString().slice(0, 10)}.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        });
-        
-        // Print report
-        document.getElementById('print-report').addEventListener('click', () => {
-            if (auditResults.length === 0) {
-                alert('No audit results to print.');
-                return;
-            }
-            
-            // Create a printable version of the report
-            const printWindow = window.open('', '_blank');
-            
-            // Get summary data
-            const totalItems = document.getElementById('total-items').textContent;
-            const itemsFound = document.getElementById('items-found').textContent;
-            const itemsMissing = document.getElementById('items-missing').textContent;
-            const extraItems = document.getElementById('extra-items').textContent;
-            
-            // Create HTML content
-            printWindow.document.write(`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>RNR Tire Inventory Audit Report</title>
-                    <style>
-                        body { font-family: Arial 
+            document.getElementById('items-found').textContent = itemsFoun
