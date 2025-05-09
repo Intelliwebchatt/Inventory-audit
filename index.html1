@@ -1,0 +1,457 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RNR Tire Inventory Audit</title>
+  <style>
+    :root {
+      --primary: #d32f2f;
+      --primary-light: #ff6659;
+      --primary-dark: #9a0007;
+      --secondary: #212121;
+      --text: #212121;
+      --background: #f5f5f5;
+      --card: #ffffff;
+      --error: #d32f2f;
+      --success: #388e3c;
+    }* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+header {
+  background-color: var(--primary);
+  color: white;
+  padding: 1rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo {
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+.card {
+  background-color: var(--card);
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1rem;
+  padding: 1.5rem;
+}
+
+h2 {
+  margin-bottom: 1rem;
+}
+
+.tabs {
+  display: flex;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #ddd;
+}
+
+.tab {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+}
+
+.tab.active {
+  border-bottom: 3px solid var(--secondary);
+  font-weight: bold;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+input[type="file"],
+textarea {
+  width: 100%;
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+button {
+  background-color: var(--primary);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.2s;
+}
+
+button:hover {
+  background-color: var(--primary-dark);
+}
+
+.btn-secondary {
+  background-color: var(--secondary);
+}
+
+.btn-secondary:hover {
+  background-color: #424242;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+th,
+td {
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  text-align: left;
+}
+
+th {
+  background-color: var(--primary-light);
+  color: white;
+}
+
+tr:nth-child(even) {
+  background-color: #fafafa;
+}
+
+.status-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 0.4rem;
+}
+
+.status-match {
+  background-color: var(--success);
+}
+.status-missing {
+  background-color: var(--error);
+}
+.status-extra {
+  background-color: #ff9800;
+}
+
+.summary-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.summary-item {
+  flex: 1 1 180px;
+  background-color: var(--primary-light);
+  color: white;
+  border-radius: 6px;
+  padding: 1rem;
+  text-align: center;
+}
+
+.summary-value {
+  font-size: 1.8rem;
+  font-weight: bold;
+}
+
+.loading {
+  display: none;
+  text-align: center;
+  padding: 2rem;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-top: 4px solid var(--primary);
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container header-content">
+      <div class="logo">RNR Tire Inventory Audit</div>
+      <div id="audit-date"></div>
+    </div>
+  </header>  <div class="container">
+    <div class="tabs">
+      <div class="tab active" data-tab="setup">Setup</div>
+      <div class="tab" data-tab="audit">Audit</div>
+      <div class="tab" data-tab="reports">Reports</div>
+    </div><div class="tab-content active" id="setup-content">
+  <div class="card">
+    <h2>Upload Tire Inventory (CSV)</h2>
+    <input type="file" id="tires-file" accept=".csv" />
+    <button id="parse-tires">Parse Tire CSV</button>
+    <div id="tires-info"></div>
+  </div>
+
+  <div class="card">
+    <h2>Upload Wheel Inventory (CSV)</h2>
+    <input type="file" id="wheels-file" accept=".csv" />
+    <button id="parse-wheels">Parse Wheel CSV</button>
+    <div id="wheels-info"></div>
+  </div>
+
+  <div class="card">
+    <h2>Google Recorder Transcript</h2>
+    <textarea id="transcript-text" placeholder="Paste transcript or upload .txt"></textarea>
+    <input type="file" id="transcript-file" accept=".txt" />
+    <button id="parse-transcript">Parse Transcript</button>
+    <div id="transcript-info"></div>
+  </div>
+</div>
+
+<div class="tab-content" id="audit-content">
+  <div class="card">
+    <h2>Choose Inventory Type & Run Audit</h2>
+    <label><input type="radio" name="inv-type" value="tires" checked /> Tires</label>
+    <label><input type="radio" name="inv-type" value="wheels" /> Wheels</label>
+    <button id="run-audit">Run Audit</button>
+  </div>
+
+  <div class="card">
+    <h2>Summary</h2>
+    <div class="summary-box">
+      <div class="summary-item"><div class="summary-value" id="tot-items">0</div>Total</div>
+      <div class="summary-item"><div class="summary-value" id="found-items">0</div>Found</div>
+      <div class="summary-item"><div class="summary-value" id="missing-items">0</div>Missing</div>
+      <div class="summary-item"><div class="summary-value" id="extra-items">0</div>Extra</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Results</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Item #</th>
+          <th>Description</th>
+          <th>Exp Qty</th>
+          <th>Act Qty</th>
+          <th>Diff</th>
+        </tr>
+      </thead>
+      <tbody id="results-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="tab-content" id="reports-content">
+  <div class="card">
+    <h2>Download CSV</h2>
+    <button class="btn-secondary" id="export-csv">Export Audit CSV</button>
+  </div>
+</div>
+
+<div class="loading" id="loading">
+  <div class="spinner"></div>
+  Processing...
+</div>
+
+  </div>  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>  <script>
+    const q = (sel) => document.querySelector(sel);
+    const auditDate = new Date().toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+    q("#audit-date").textContent = auditDate;
+
+    // Tab switching
+    document.querySelectorAll(".tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+        document.querySelectorAll(".tab-content").forEach((c) => c.classList.remove("active"));
+        tab.classList.add("active");
+        q(`#${tab.dataset.tab}-content`).classList.add("active");
+      });
+    });
+
+    const tiresData = { rows: [] };
+    const wheelsData = { rows: [] };
+    let transcriptRows = [];
+    let auditRows = [];
+
+    function parseCsv(file, target) {
+      if (!file) return;
+      q("#loading").style.display = "block";
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (res) => {
+          target.rows = res.data;
+          q("#loading").style.display = "none";
+          alert(`Parsed ${res.data.length} rows from ${file.name}`);
+        },
+        error: (err) => {
+          q("#loading").style.display = "none";
+          alert("Error parsing CSV: " + err.message);
+        },
+      });
+    }
+
+    q("#parse-tires").addEventListener("click", () => {
+      parseCsv(q("#tires-file").files[0], tiresData);
+    });
+
+    q("#parse-wheels").addEventListener("click", () => {
+      parseCsv(q("#wheels-file").files[0], wheelsData);
+    });
+
+    // Transcript parsing
+    q("#transcript-file").addEventListener("change", (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => (q("#transcript-text").value = ev.target.result);
+      reader.readAsText(f);
+    });
+
+    q("#parse-transcript").addEventListener("click", () => {
+      const text = q("#transcript-text").value;
+      if (!text.trim()) return alert("Enter or upload transcript text first.");
+      transcriptRows = [];
+      const pattern = /(\d{5})/g;
+      text.split("\n").forEach((line) => {
+        let m;
+        while ((m = pattern.exec(line))) {
+          const last5 = m[1];
+          transcriptRows.push("11703" + last5);
+        }
+      });
+      alert(`Extracted ${transcriptRows.length} item numbers from transcript.`);
+    });
+
+    function runAudit() {
+      const invType = q("input[name='inv-type']:checked").value;
+      const source = invType === "tires" ? tiresData.rows : wheelsData.rows;
+      if (source.length === 0) return alert("Load the " + invType + " CSV first.");
+      if (transcriptRows.length === 0) return alert("Parse transcript first.");
+
+      auditRows = [];
+      const transcriptSet = new Map();
+      transcriptRows.forEach((num) => {
+        transcriptSet.set(num, (transcriptSet.get(num) || 0) + 1);
+      });
+
+      // infer item column
+      const cols = Object.keys(source[0]);
+      const itemCol = cols.find((c) => c.toLowerCase().includes("item")) || cols[0];
+      const descCol = cols.find((c) => c.toLowerCase().includes("desc")) || cols[1];
+      const qtyCol = cols.find((c) => c.toLowerCase().includes("qty")) || null;
+
+      source.forEach((row) => {
+        const num = row[itemCol]?.trim();
+        const actual = transcriptSet.get(num) || 0;
+        auditRows.push({
+          status: actual > 0 ? "match" : "missing",
+          num,
+          desc: row[descCol] || "",
+          exp: qtyCol ? row[qtyCol] : 1,
+          act: actual,
+          diff: (actual || 0) - (qtyCol ? row[qtyCol] : 1),
+        });
+        if (actual > 0) transcriptSet.delete(num);
+      });
+
+      transcriptSet.forEach((cnt, num) => {
+        auditRows.push({
+          status: "extra",
+          num,
+          desc: "Unknown",
+          exp: 0,
+          act: cnt,
+          diff: cnt,
+        });
+      });
+
+      // summary
+      q("#tot-items").textContent = auditRows.length;
+      q("#found-items").textContent = auditRows.filter((r) => r.status === "match").length;
+      q("#missing-items").textContent = auditRows.filter((r) => r.status === "missing").length;
+      q("#extra-items").textContent = auditRows.filter((r) => r.status === "extra").length;
+
+      // render table
+      const tbody = q("#results-body");
+      tbody.innerHTML = "";
+      auditRows.forEach((r) => {
+        const tr = document.createElement("tr");
+        const statusTd = document.createElement("td");
+        const dot = document.createElement("span");
+        dot.classList.add("status-indicator", `status-${r.status}");
+        statusTd.appendChild(dot);
+        statusTd.append(r.status.charAt(0).toUpperCase() + r.status.slice(1));
+        tr.appendChild(statusTd);
+        tr.innerHTML += `<td>${r.num}</td><td>${r.desc}</td><td>${r.exp}</td><td>${r.act}</td><td>${r.diff}</td>`;
+        tbody.appendChild(tr);
+      });
+
+      // switch to audit tab
+      document.querySelector(".tab[data-tab='audit']").click();
+    }
+
+    q("#run-audit").addEventListener("click", runAudit);
+
+    // Export CSV
+    q("#export-csv").addEventListener("click", () => {
+      if (auditRows.length === 0) return alert("Run an audit first.");
+      let csv = "Status,Item#,Description,Expected,Actual,Diff\n";
+      auditRows.forEach((r) => {
+        csv += `${r.status},${r.num},"${r.desc}",${r.exp},${r.act},${r.diff}\n`;
+      });
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `audit-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  </script></body>
+</html>
